@@ -9,7 +9,7 @@ const { promisify } = require("node:util");
 
 const app = express();
 const httpServer = http.createServer(app);
-const allowedOrigins = new Set((process.env.FRONTEND_ORIGINS || "http://127.0.0.1:5173,http://localhost:5173")
+const allowedOrigins = new Set((process.env.FRONTEND_ORIGINS || "https://lightchat.in,http://127.0.0.1:5173,http://localhost:5173")
     .split(",").map((origin) => origin.trim()).filter(Boolean));
 const io = new Server(httpServer, {
     cors: {

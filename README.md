@@ -18,7 +18,7 @@ Open the frontend at `http://127.0.0.1:5173`. The API listens at `http://127.0.0
 
 ## Configure separately
 
-The frontend reads `VITE_API_URL` from `frontend/.env`; see `frontend/.env.example`. The API reads its port, allowed frontend origins, STUN, and TURN settings from `api/.env`; see `api/.env.example`. For local development, the defaults are already set in Vite and Express. In production, set `VITE_API_URL` to the public API origin and `FRONTEND_ORIGINS` to the public frontend origin. Use HTTPS for the frontend/API and configure TURN when networks require media relaying.
+Production domains are configured as `https://lightchat.in` for the frontend and `https://api.lightchat.in` for the API. Vite production builds read `VITE_API_URL=https://api.lightchat.in` from `frontend/.env.production`. Set `FRONTEND_ORIGINS=https://lightchat.in` in the API deployment environment (the checked-in `api/.env.example` also includes localhost origins for development). For local development, the frontend `.env.example` points at `http://127.0.0.1:3000`. Deploy the API with `NODE_ENV=production` so session cookies are `Secure` and cross-subdomain requests use `SameSite=None`. Use HTTPS for both domains and configure TURN when networks require media relaying.
 
 Accounts, meetings, direct/group messages, and call events are handled by the API project. Password hashes are in `api/data/users.json`; meetings and chat history are currently in memory and reset when the API process restarts. Frontend schedules remain in that browser's local storage.
 
