@@ -213,9 +213,10 @@ function hasValidPasscode(meeting, passcode) {
 }
 
 app.post("/api/meetings", requireAuth, (request, response) => {
-    const recipientId = typeof request.body.recipientId === "string" ? request.body.recipientId : null;
+    const body = request.body || {};
+    const recipientId = typeof body.recipientId === "string" ? body.recipientId : null;
     const recipient = recipientId ? [...users.values()].find((user) => user.id === recipientId) : null;
-    const recipientIds = Array.isArray(request.body.recipientIds) ? [...new Set(request.body.recipientIds)] : [];
+    const recipientIds = Array.isArray(body.recipientIds) ? [...new Set(body.recipientIds)] : [];
     const guestIds = recipient ? [recipient.id] : recipientIds;
     if ((recipientId && (!recipient || recipient.id === request.user.id))
         || guestIds.length > MAX_PARTICIPANTS - 1

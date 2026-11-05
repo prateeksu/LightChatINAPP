@@ -91,8 +91,8 @@ export default function App() {
       const response = await fetch(apiUrl("/api/meetings"), {
         method: "POST",
         credentials: "include",
-        headers: meetingBody ? { "Content-Type": "application/json" } : undefined,
-        body: meetingBody ? JSON.stringify(meetingBody) : undefined,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(meetingBody || {}),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Could not create meeting.");
@@ -124,7 +124,12 @@ export default function App() {
       return false;
     }
     try {
-      const response = await fetch(apiUrl("/api/meetings"), { method: "POST", credentials: "include" });
+      const response = await fetch(apiUrl("/api/meetings"), {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
       const meeting = await response.json();
       if (!response.ok) throw new Error(meeting.error || "Could not create meeting.");
       setMeetings((current) => [...current, {
