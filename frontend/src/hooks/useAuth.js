@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
+import { apiUrl } from "../lib/api.js";
 
 async function postAuth(path, values) {
-  const response = await fetch(path, {
+  const response = await fetch(apiUrl(path), {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -18,7 +19,7 @@ export function useAuth() {
 
   useEffect(() => {
     let active = true;
-    fetch("/api/auth/session", { credentials: "include" })
+    fetch(apiUrl("/api/auth/session"), { credentials: "include" })
       .then((response) => response.json())
       .then((result) => { if (active) setUser(result.user); })
       .catch(() => { if (active) setUser(null); })
@@ -37,7 +38,7 @@ export function useAuth() {
   }
 
   async function logout() {
-    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    await fetch(apiUrl("/api/auth/logout"), { method: "POST", credentials: "include" });
     setUser(null);
   }
 

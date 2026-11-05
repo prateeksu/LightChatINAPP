@@ -1,17 +1,26 @@
+require("dotenv").config();
+
 const express = require("express");
 const http = require("node:http");
 const fs = require("node:fs");
-const path = require("node:path");
 const { Server } = require("socket.io");
 const { createHash, createHmac, randomBytes, randomUUID, scrypt: scryptCallback, timingSafeEqual } = require("node:crypto");
 const { promisify } = require("node:util");
 
 const app = express();
 const httpServer = http.createServer(app);
-const io = new Server(httpServer, { cors: { origin: false }, maxHttpBufferSize: 64 * 1024 });
+const allowedOrigins = new Set((process.env.FRONTEND_ORIGINS || "http://127.0.0.1:5173,http://localhost:5173")
+    .split(",").map((origin) => origin.trim()).filter(Boolean));
+const io = new Server(httpServer, {
+    cors: {
+        origin: (origin, callback) => callback(null, !origin || allowedOrigins.has(origin)),
+        credentials: true,
+    },
+    maxHttpBufferSize: 64 * 1024,
+});
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || "127.0.0.1";
-const SOURCE_DIR = path.join(__dirname, "dist");
+const path = require("node:path");
 const USER_DATA_FILE = path.join(__dirname, "data", "users.json");
 const SESSION_COOKIE = "lightchat_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
@@ -34,9 +43,18 @@ try {
 app.disable("x-powered-by");
 app.use(express.json({ limit: "8kb" }));
 app.use((request, response, next) => {
+    const origin = request.headers.origin;
+    if (origin && allowedOrigins.has(origin)) {
+        response.setHeader("Access-Control-Allow-Origin", origin);
+        response.setHeader("Access-Control-Allow-Credentials", "true");
+        response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+        response.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        response.setHeader("Vary", "Origin");
+    }
     response.setHeader("X-Content-Type-Options", "nosniff");
     response.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
     response.setHeader("Cache-Control", "no-store");
+    if (request.method === "OPTIONS") return response.sendStatus(204);
     next();
 });
 
@@ -65,8 +83,9 @@ function requireAuth(request, response, next) {
 }
 
 function cookieValue(request, token, maxAge) {
-    const secure = request.socket.encrypted || process.env.NODE_ENV === "production" ? "; Secure" : "";
-    return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`;
+    const secure = request.socket.encrypted || process.env.NODE_ENV === "production";
+    const sameSite = secure ? "None" : "Lax";
+    return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=${sameSite}; Max-Age=${maxAge}${secure ? "; Secure" : ""}`;
 }
 
 function publicUser(user) {
@@ -438,11 +457,6 @@ io.on("connection", (socket) => {
     });
 });
 
-app.use(express.static(SOURCE_DIR, { index: false, fallthrough: true }));
-app.get(/.*/, (request, response) => response.sendFile(path.join(SOURCE_DIR, "index.html"), (error) => {
-    if (error) response.status(404).send("Build the frontend first with npm run build.");
-}));
-
 httpServer.listen(PORT, HOST, () => {
-    console.log(`LightChat Express + Socket.IO listening on http://${HOST}:${PORT}`);
+    console.log(`LightChat API + Socket.IO listening on http://${HOST}:${PORT}`);
 });

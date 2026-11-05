@@ -12,6 +12,7 @@ import { readMeetings, saveMeetings } from "./lib/meetings.js";
 import { useAuth } from "./hooks/useAuth.js";
 import { useDirectMessages } from "./hooks/useDirectMessages.js";
 import { useMeetingCall } from "./hooks/useMeetingCall.js";
+import { apiUrl } from "./lib/api.js";
 import "./styles.css";
 
 const titles = { overview: "Overview", schedule: "Schedule", contacts: "People" };
@@ -87,7 +88,7 @@ export default function App() {
         ? { recipientIds: conversation.members.filter((member) => member.id !== auth.user.id).map((member) => member.id) }
         : null;
     try {
-      const response = await fetch("/api/meetings", {
+      const response = await fetch(apiUrl("/api/meetings"), {
         method: "POST",
         credentials: "include",
         headers: meetingBody ? { "Content-Type": "application/json" } : undefined,
@@ -123,7 +124,7 @@ export default function App() {
       return false;
     }
     try {
-      const response = await fetch("/api/meetings", { method: "POST", credentials: "include" });
+      const response = await fetch(apiUrl("/api/meetings"), { method: "POST", credentials: "include" });
       const meeting = await response.json();
       if (!response.ok) throw new Error(meeting.error || "Could not create meeting.");
       setMeetings((current) => [...current, {

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
+import { API_BASE_URL, apiUrl } from "../lib/api.js";
 
 export function useDirectMessages(user) {
   const [people, setPeople] = useState([]);
@@ -19,8 +20,8 @@ export function useDirectMessages(user) {
     if (!user?.id) return undefined;
     let active = true;
     Promise.all([
-      fetch("/api/people", { credentials: "include" }).then((response) => response.json()),
-      fetch("/api/groups", { credentials: "include" }).then((response) => response.json()),
+      fetch(apiUrl("/api/people"), { credentials: "include" }).then((response) => response.json()),
+      fetch(apiUrl("/api/groups"), { credentials: "include" }).then((response) => response.json()),
     ]).then(([peopleResult, groupsResult]) => {
       if (active) {
         setPeople(peopleResult.people || []);
@@ -28,7 +29,7 @@ export function useDirectMessages(user) {
       }
     }).catch((requestError) => { if (active) setError(requestError.message); });
 
-    const socket = io(window.location.origin, { withCredentials: true });
+    const socket = io(API_BASE_URL, { withCredentials: true });
     socketRef.current = socket;
     const joinActiveConversation = () => {
       const conversation = activeConversationRef.current;
@@ -84,7 +85,7 @@ export function useDirectMessages(user) {
   }
 
   async function createGroup(name, memberIds) {
-    const response = await fetch("/api/groups", {
+    const response = await fetch(apiUrl("/api/groups"), {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },

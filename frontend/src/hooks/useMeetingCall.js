@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { io } from "socket.io-client";
+import { API_BASE_URL, apiUrl } from "../lib/api.js";
 
 function makeSnapshot(record) {
   return {
@@ -218,7 +219,7 @@ export function useMeetingCall() {
     }
 
     try {
-      const validation = await fetch(`/api/meetings/${encodeURIComponent(roomId)}/validate`, {
+      const validation = await fetch(apiUrl(`/api/meetings/${encodeURIComponent(roomId)}/validate`), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -232,13 +233,13 @@ export function useMeetingCall() {
       }
       if (currentCall.current !== record) return;
 
-      const iceResponse = await fetch("/api/ice-config", { credentials: "include" });
+      const iceResponse = await fetch(apiUrl("/api/ice-config"), { credentials: "include" });
       if (iceResponse.ok) {
         const iceConfig = await iceResponse.json();
         record.iceServers = iceConfig.iceServers || record.iceServers;
       }
 
-      record.socket = io(window.location.origin, { withCredentials: true, reconnection: false });
+      record.socket = io(API_BASE_URL, { withCredentials: true, reconnection: false });
       record.socket.on("connect_error", (error) => {
         if (currentCall.current === record) setStatus(record, error.message || "Could not connect to meeting signaling.");
       });
