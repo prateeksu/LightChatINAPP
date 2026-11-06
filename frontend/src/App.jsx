@@ -4,6 +4,7 @@ import AuthScreen from "./components/AuthScreen.jsx";
 import ContactsView from "./components/ContactsView.jsx";
 import JoinDialog from "./components/JoinDialog.jsx";
 import Overview from "./components/Overview.jsx";
+import ProfileView from "./components/ProfileView.jsx";
 import ScheduleDialog from "./components/ScheduleDialog.jsx";
 import ScheduleView from "./components/ScheduleView.jsx";
 import Sidebar from "./components/Sidebar.jsx";
@@ -15,14 +16,14 @@ import { useMeetingCall } from "./hooks/useMeetingCall.js";
 import { apiUrl } from "./lib/api.js";
 import "./styles.css";
 
-const titles = { overview: "Overview", schedule: "Schedule", contacts: "People" };
+const titles = { overview: "Overview", schedule: "Schedule", contacts: "People", profile: "Profile" };
 
 export default function App() {
   const initialRoomId = new URLSearchParams(window.location.search).get("room") || "";
   const auth = useAuth();
   const [meetings, setMeetings] = useState([]);
   const [meetingOwnerId, setMeetingOwnerId] = useState(null);
-  const [view, setView] = useState(["overview", "schedule", "contacts"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "overview");
+  const [view, setView] = useState(["overview", "schedule", "contacts", "profile"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "overview");
   const [filter, setFilter] = useState("upcoming");
   const [joinOpen, setJoinOpen] = useState(Boolean(initialRoomId));
   const [scheduleOpen, setScheduleOpen] = useState(false);
@@ -200,6 +201,7 @@ export default function App() {
           onCall={startHostMeeting}
           onJoinCall={joinCallEvent}
         />}
+        {view === "profile" && <ProfileView user={auth.user} onLogout={signOut} />}
         <footer className="app-footer"><span>LIGHTCHAT</span><span>Make time for each other.</span></footer>
       </main>
       <JoinDialog open={joinOpen} initialRoomId={initialRoomId} onJoin={joinMeeting} onClose={() => setJoinOpen(false)} />

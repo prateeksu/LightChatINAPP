@@ -4,6 +4,7 @@ const items = [
   { id: "overview", icon: "◫", label: "Overview" },
   { id: "schedule", icon: "▦", label: "Schedule" },
   { id: "contacts", icon: "◉", label: "People" },
+  { id: "profile", icon: "◎", label: "Profile" },
 ];
 
 export default function Sidebar({ view, upcomingCount, user, onChange, onLogout }) {

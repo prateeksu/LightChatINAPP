@@ -3,6 +3,7 @@ require("dotenv").config();
 const express = require("express");
 const http = require("node:http");
 const fs = require("node:fs");
+const mysql = require("mysql2/promise");
 const { Server } = require("socket.io");
 const { createHash, createHmac, randomBytes, randomUUID, scrypt: scryptCallback, timingSafeEqual } = require("node:crypto");
 const { promisify } = require("node:util");
@@ -26,6 +27,15 @@ const SESSION_COOKIE = "lightchat_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
 const MAX_PARTICIPANTS = 4;
 const scrypt = promisify(scryptCallback);
+const dbPool = mysql.createPool({
+    host: process.env.DB_HOST,
+    port: Number(process.env.DB_PORT || 3306),
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    waitForConnections: true,
+    connectionLimit: 10,
+});
 const users = new Map();
 const sessions = new Map();
 const meetings = new Map();
@@ -34,10 +44,38 @@ const directMessages = new Map();
 const directMembers = new Map();
 const groups = new Map();
 
-try {
-    for (const user of JSON.parse(fs.readFileSync(USER_DATA_FILE, "utf8"))) users.set(user.email, user);
-} catch (error) {
-    if (error.code !== "ENOENT") throw error;
+async function initializeDatabase() {
+    const requiredSettings = ["DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME"];
+    const missingSettings = requiredSettings.filter((setting) => !process.env[setting]);
+    if (missingSettings.length) {
+        throw new Error(`Missing database environment settings: ${missingSettings.join(", ")}`);
+    }
+
+    await dbPool.execute(`CREATE TABLE IF NOT EXISTS users (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        name VARCHAR(48) NOT NULL,
+        email VARCHAR(254) NOT NULL UNIQUE,
+        salt CHAR(32) NOT NULL,
+        password_hash CHAR(128) NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+
+    try {
+        const legacyUsers = JSON.parse(await fs.promises.readFile(USER_DATA_FILE, "utf8"));
+        for (const user of legacyUsers) {
+            await dbPool.execute(
+                "INSERT IGNORE INTO users (id, name, email, salt, password_hash) VALUES (?, ?, ?, ?, ?)",
+                [user.id, user.name, user.email, user.salt, user.passwordHash],
+            );
+        }
+    } catch (error) {
+        if (error.code !== "ENOENT") throw error;
+    }
+
+    const [storedUsers] = await dbPool.execute(
+        "SELECT id, name, email, salt, password_hash AS passwordHash FROM users",
+    );
+    for (const user of storedUsers) users.set(user.email, user);
 }
 
 app.disable("x-powered-by");
@@ -90,13 +128,6 @@ function cookieValue(request, token, maxAge) {
 
 function publicUser(user) {
     return { id: user.id, name: user.name, email: user.email };
-}
-
-async function saveUsers() {
-    await fs.promises.mkdir(path.dirname(USER_DATA_FILE), { recursive: true });
-    const temporaryFile = `${USER_DATA_FILE}.tmp`;
-    await fs.promises.writeFile(temporaryFile, JSON.stringify([...users.values()], null, 2), { mode: 0o600 });
-    await fs.promises.rename(temporaryFile, USER_DATA_FILE);
 }
 
 function validCredentials(email, password) {
@@ -158,13 +189,21 @@ app.post("/api/auth/register", async (request, response) => {
     if (!name || name.length > 48 || !validCredentials(email, password)) {
         return response.status(400).json({ error: "Enter your name, a valid email, and a password of at least 8 characters." });
     }
-    if (users.has(email)) return response.status(409).json({ error: "An account with this email already exists." });
-
     const salt = randomBytes(16);
     const passwordHash = await scrypt(password, salt, 64);
     const user = { id: randomUUID(), name, email, salt: salt.toString("hex"), passwordHash: passwordHash.toString("hex") };
+    try {
+        await dbPool.execute(
+            "INSERT INTO users (id, name, email, salt, password_hash) VALUES (?, ?, ?, ?, ?)",
+            [user.id, user.name, user.email, user.salt, user.passwordHash],
+        );
+    } catch (error) {
+        if (error.code === "ER_DUP_ENTRY") {
+            return response.status(409).json({ error: "An account with this email already exists." });
+        }
+        throw error;
+    }
     users.set(email, user);
-    await saveUsers();
     const token = randomBytes(32).toString("base64url");
     sessions.set(token, { user: publicUser(user), expiresAt: Date.now() + SESSION_TTL_SECONDS * 1000 });
     response.setHeader("Set-Cookie", cookieValue(request, token, SESSION_TTL_SECONDS));
@@ -175,7 +214,11 @@ app.post("/api/auth/login", async (request, response) => {
     const email = typeof request.body.email === "string" ? request.body.email.trim().toLowerCase() : "";
     const password = request.body.password;
     if (!validCredentials(email, password)) return response.status(400).json({ error: "Enter a valid email and password." });
-    const user = users.get(email);
+    const [storedUsers] = await dbPool.execute(
+        "SELECT id, name, email, salt, password_hash AS passwordHash FROM users WHERE email = ? LIMIT 1",
+        [email],
+    );
+    const user = storedUsers[0];
     if (!user) return response.status(401).json({ error: "Email or password is incorrect." });
     const candidate = await scrypt(password, Buffer.from(user.salt, "hex"), 64);
     const expected = Buffer.from(user.passwordHash, "hex");
@@ -458,6 +501,17 @@ io.on("connection", (socket) => {
     });
 });
 
-httpServer.listen(PORT, HOST, () => {
-    console.log(`LightChat API + Socket.IO listening on http://${HOST}:${PORT}`);
-});
+async function startServer() {
+    try {
+        await initializeDatabase();
+        httpServer.listen(PORT, HOST, () => {
+            console.log(`LightChat API + Socket.IO listening on http://${HOST}:${PORT}`);
+        });
+    } catch (error) {
+        console.error("Could not initialize the LightChat database:", error.message);
+        await dbPool.end();
+        process.exitCode = 1;
+    }
+}
+
+startServer();
