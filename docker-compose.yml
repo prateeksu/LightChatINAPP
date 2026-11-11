@@ -1,0 +1,25 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: phonechat-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: local_root_change_me
+      MYSQL_DATABASE: phonechat
+      MYSQL_USER: phonechat
+      MYSQL_PASSWORD: local_phonechat_change_me
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+  redis:
+    image: redis:7-alpine
+    container_name: phonechat-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+volumes:
+  mysql_data:
+  redis_data:

@@ -1,29 +1,77 @@
-# LightChat
+# FirstYourHealth PhoneChat — React + Express + MySQL + WebSocket + Redis
 
-LightChat is organized as two independent projects:
+A GitHub-ready starter with separate React, REST API, and WebSocket services.
 
-- `frontend/`: React + Vite video chat, scheduling, direct messages, and group chats.
-- `api/`: Express REST API and Socket.IO service for accounts, meetings, chat, and signaling.
+## Architecture
+- `client/`: React + Vite
+- `api/`: Express REST API (login, search users, chat history)
+- `ws-server/`: WebSocket server for live messages
+- MySQL: users and messages
+- Redis Pub/Sub: fan-out between WebSocket instances (local Docker Compose)
 
-## Run both locally
+> This is a starter, not production-ready authentication. Before production, add OTP verification, rate limits, HTTPS/WSS, secure password hashing, refresh/session management, authorization checks, validation, and logging.
 
-Requires Node.js 20 or newer.
+## Local prerequisites
+Node.js 20+, Docker Desktop (for MySQL/Redis), Git.
 
-```sh
-npm run install:all
-npm run dev
+## Start databases
+From project root:
+```bash
+docker compose up -d mysql redis
 ```
 
-Open the frontend at `http://127.0.0.1:5173`. The API listens at `http://127.0.0.1:3000`. To run them independently, use `npm run dev --prefix api` and `npm run dev --prefix frontend` in separate terminals.
+## Configure environment
+```bash
+cp api/.env.example api/.env
+cp ws-server/.env.example ws-server/.env
+cp client/.env.example client/.env
+```
+Update secrets in both server env files. Keep `.env` out of Git.
 
-## Configure separately
+## Install
+```bash
+cd api && npm install
+cd ../ws-server && npm install
+cd ../client && npm install
+```
 
-Production domains are configured as `https://lightchat.in` for the frontend and `https://api.lightchat.in` for the API. Vite production builds read `VITE_API_URL=https://api.lightchat.in` from `frontend/.env.production`. Set `FRONTEND_ORIGINS=https://lightchat.in` in the API deployment environment (the checked-in `api/.env.example` also includes localhost origins for development). For local development, the frontend `.env.example` points at `http://127.0.0.1:3000`. Deploy the API with `NODE_ENV=production` so session cookies are `Secure` and cross-subdomain requests use `SameSite=None`. Use HTTPS for both domains and configure TURN when networks require media relaying.
+## Initialize schema and demo accounts
+```bash
+cd api
+npm run db:init
+npm run db:seed
+```
+Demo users:
+- `+919876543210` / `demo123`
+- `+919876543211` / `demo123`
 
-Accounts are stored in MySQL. Meetings, groups, sessions, and chat history are currently in API process memory and reset when the API process restarts. Frontend schedules remain in that browser's local storage.
+## Run (3 terminals)
+```bash
+# terminal 1
+cd api && npm run dev
 
-### MySQL account storage
+# terminal 2
+cd ws-server && npm run dev
 
-The API creates its `users` table on startup and stores registered accounts in MySQL. Set `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, and `DB_NAME` in the API server's environment; do not commit database credentials. Copy `api/.env.example` for local configuration and replace its placeholder password. Existing accounts in `api/data/users.json` are imported into MySQL at startup.
+# terminal 3
+cd client && npm run dev
+```
+Open http://localhost:5173
 
-Video media uses peer-to-peer WebRTC; Socket.IO relays meeting metadata and SDP/ICE signaling, not media. One-to-one and up-to-four-person group conversations support text and joinable video-call events. Group video uses a peer mesh; use an SFU for larger rooms.
+## GitHub
+```bash
+git init
+git add .
+git commit -m "Initial FirstYourHealth PhoneChat"
+git branch -M main
+git remote add origin https://github.com/YOUR_USERNAME/firsturhealth-phonechat.git
+git push -u origin main
+```
+
+## Deployment notes
+- Deploy React static build (`client/dist`) to your frontend domain.
+- Deploy Express API to a Node hosting service and set `CLIENT_ORIGIN`, `DATABASE_URL` or MySQL fields.
+- Deploy WebSocket service to a host that explicitly supports inbound WebSocket/WSS.
+- Redis must be reachable by both API/WS services; use managed Redis or a VPS.
+- Hostinger Cloud managed Node hosting may not expose the infrastructure needed to run a Redis server and dedicated WebSocket listener. Confirm your plan's supported ports/features; use external services or a VPS for WS/Redis.
+- Set production `VITE_API_URL` and `VITE_WS_URL` to HTTPS/WSS endpoints before building.
